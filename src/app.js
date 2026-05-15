@@ -7,6 +7,7 @@ import { monitorPositions } from './execution/positions.js';
 import { processCandidateFromSignals, maybeProcessDegenCandidate } from './pipeline/orchestrator.js';
 import { sendTelegram } from './telegram/send.js';
 import { makeFailureTracker } from './utils.js';
+import { startWebServer } from './web/server.js';
 
 setDefaultResultOrder('ipv4first');
 validateConfig();
@@ -15,6 +16,7 @@ export async function startCharon() {
   initDb();
   initLiveExecution();
   setupTelegram();
+  startWebServer(3000);
 
   if (SIGNAL_SERVER_URL) {
     // ── Server mode: fetch signals from signal server ──────────────────────

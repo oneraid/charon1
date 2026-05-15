@@ -4,7 +4,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "node index.js",
+    "start": "concurrently \"npm run start:bot\" \"npm run start:web\"",
+    "start:bot": "node index.js",
+    "start:web": "cd dashboard && npm run dev",
     "check": "node --check index.js && node --check src/app.js && node --check src/config.js && node --check src/liveExecutor.js"
   },
   "dependencies": {
@@ -12,8 +14,13 @@
     "axios": "^1.7.9",
     "better-sqlite3": "^12.9.0",
     "bs58": "^6.0.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.7",
+    "express": "^5.2.1",
     "node-telegram-bot-api": "^0.66.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
