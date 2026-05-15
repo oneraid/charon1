@@ -62,6 +62,36 @@ export function startWebServer(port = 3000) {
     }
   });
 
+  // NEW: Update TP/SL rules
+  app.post('/api/positions/:id/rules', (req, res) => {
+    try {
+      const { id } = req.params;
+      const { tp_percent, sl_percent, trailing_enabled, trailing_percent } = req.body;
+      
+      const posId = Number(id);
+      db.prepare(`
+        UPDATE dry_run_positions 
+        SET tp_percent = ?, sl_percent = ?, trailing_enabled = ?, trailing_percent = ? 
+        WHERE id = ?
+      `).run(tp_percent, sl_percent, trailing_enabled ? 1 : 0, trailing_percent, posId);
+      
+      db.prepare(`
+        INSERT INTO tp_sl_rules (position_id, tp_percent, sl_percent, trailing_enabled, trailing_percent, updated_at_ms)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(position_id) DO UPDATE SET
+          tp_percent = excluded.tp_percent,
+          sl_percent = excluded.sl_percent,
+          trailing_enabled = excluded.trailing_enabled,
+          trailing_percent = excluded.trailing_percent,
+          updated_at_ms = excluded.updated_at_ms
+      `).run(posId, tp_percent, sl_percent, trailing_enabled ? 1 : 0, trailing_percent, now());
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get('/api/candidates', (req, res) => {
     try {
       const candidates = recentEligibleCandidates(20);

@@ -1,58 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Activity, TrendingUp, Crosshair, BarChart2, Server, Power,
-  Settings, Wallet, Trash2, Save, Zap, Shield, Target,
-  ChevronUp, ChevronDown, Minus, ArrowUpRight, Clock, RefreshCw
-} from 'lucide-react';
+import { Activity, BarChart2, Server, Settings, Wallet, Target } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import './index.css';
+
+// Components
+import { LiveClock } from '@/components/ui/LiveClock';
+
+// Pages
+import { Overview } from '@/pages/Overview';
+import { Positions } from '@/pages/Positions';
+import { Strategies } from '@/pages/Strategies';
+import { Wallets } from '@/pages/Wallets';
 
 const API_BASE = 'http://localhost:3000/api';
 
-/* ───────────────────────────────────────────
-   LIVE CLOCK
-─────────────────────────────────────────── */
-function LiveClock() {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <span className="header-time">
-      {time.toUTCString().slice(17, 25)} UTC
-    </span>
-  );
-}
-
-/* ───────────────────────────────────────────
-   TOGGLE SWITCH
-─────────────────────────────────────────── */
-function Toggle({ checked, onChange, label, desc }) {
-  return (
-    <div className="toggle-row">
-      <div className="toggle-info">
-        <div className="toggle-label">{label}</div>
-        {desc && <div className="toggle-desc">{desc}</div>}
-      </div>
-      <label className="toggle-switch">
-        <input type="checkbox" checked={checked} onChange={onChange} />
-        <span className="toggle-track" />
-      </label>
-    </div>
-  );
-}
-
-/* ───────────────────────────────────────────
-   TOKEN AVATAR (initials)
-─────────────────────────────────────────── */
-function TokenAvatar({ symbol }) {
-  const s = (symbol || '??').slice(0, 3).toUpperCase();
-  return <div className="token-avatar">{s}</div>;
-}
-
-/* ───────────────────────────────────────────
-   MAIN APP
-─────────────────────────────────────────── */
 function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState({ totalTrades: 0, winRate: 0, openPositions: 0 });
@@ -145,510 +106,90 @@ function App() {
     } catch { alert('Failed to delete wallet'); }
   };
 
-  const pnlColor = (v) => v > 0 ? 'trend-up' : v < 0 ? 'trend-down' : 'trend-neutral';
-  const pnlIcon = (v) => v > 0 ? <ChevronUp size={14} /> : v < 0 ? <ChevronDown size={14} /> : <Minus size={14} />;
-
-  /* ── NAV ITEMS ── */
   const navItems = [
     { id: 'overview', label: 'Overview', Icon: BarChart2 },
+    { id: 'positions', label: 'Positions', Icon: Target },
     { id: 'strategy', label: 'Strategies', Icon: Settings },
     { id: 'wallets', label: 'Wallets & PnL', Icon: Wallet },
   ];
 
   return (
-    <div className="app-container">
-
-      {/* ══════════════ HEADER ══════════════ */}
-      <header className="header">
-        <div className="header-brand">
-          <div className="header-logo-icon">
+    <div className="flex flex-col min-h-screen">
+      {/* HEADER */}
+      <header className="h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-[100] bg-gradient-to-b from-[#0e1318fa] to-[#090c10f2] border-b border-white/10 backdrop-blur-md">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded bg-brand-dim border border-brand/30 flex items-center justify-center text-brand shadow-accent">
             <Activity size={16} />
           </div>
-          <span className="header-logo">Char<span>on</span></span>
+          <span className="text-xl font-extrabold text-foreground tracking-tight">
+            Char<span className="text-brand">on</span>
+          </span>
         </div>
 
-        <div className="header-right">
-          <LiveClock />
-          <div className="status-pill online">
-            <span className="status-dot" />
+        <div className="flex items-center gap-4">
+          <div className="hidden md:block"><LiveClock /></div>
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold font-mono tracking-wider uppercase bg-status-greenDim text-status-green border border-status-green/25">
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse-dot" />
             Bot Active
           </div>
         </div>
       </header>
 
-      {/* ══════════════ BODY ══════════════ */}
-      <div className="app-body">
-
+      {/* BODY */}
+      <div className="flex flex-1 flex-col md:flex-row">
         {/* SIDEBAR */}
-        <aside className="sidebar">
-          <span className="sidebar-label">Navigation</span>
+        <aside className="fixed bottom-0 left-0 right-0 z-[100] md:sticky md:top-16 w-full md:w-[220px] bg-base md:border-r border-t md:border-t-0 border-white/5 md:px-3 md:py-6 h-14 md:h-[calc(100vh-64px)] flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto shrink-0">
+          <span className="hidden md:block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground px-3 mb-1 mt-2">Navigation</span>
+          
           {navItems.map(({ id, label, Icon }) => (
             <div
               key={id}
-              className={`nav-item ${activeTab === id ? 'active' : ''}`}
               onClick={() => setActiveTab(id)}
-              style={{ position: 'relative' }}
+              className={cn(
+                "flex md:flex-row flex-col items-center justify-center md:justify-start gap-1 md:gap-3 px-3 py-2 md:py-2.5 rounded-md cursor-pointer transition-all duration-150 text-muted-foreground text-[10px] md:text-sm font-semibold md:font-medium border border-transparent flex-1 md:flex-none relative",
+                activeTab === id ? "text-brand bg-brand-dim border-brand/30" : "hover:text-foreground hover:bg-raised"
+              )}
             >
-              <Icon size={18} className="nav-icon" />
+              <Icon size={18} className={cn("shrink-0 transition-all duration-150", activeTab === id && "text-brand drop-shadow-[0_0_6px_rgba(0,255,170,1)]")} />
               <span>{label}</span>
-              {id === 'overview' && stats.openPositions > 0 && (
-                <span className="nav-badge">{stats.openPositions}</span>
+              {id === 'positions' && stats.openPositions > 0 && (
+                <span className="absolute md:static top-1 right-1 md:ml-auto font-mono text-[9px] md:text-[11px] bg-brand-dim text-brand px-1 md:px-1.5 py-0.5 rounded-full border border-brand/30">
+                  {stats.openPositions}
+                </span>
               )}
             </div>
           ))}
 
-          <span className="sidebar-label" style={{ marginTop: 'auto' }}>System</span>
-          <div className="nav-item">
-            <Server size={16} className="nav-icon" />
+          <span className="hidden md:block text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground px-3 mb-1 mt-auto">System</span>
+          <div className="hidden md:flex items-center gap-3 px-3.5 py-2.5 rounded-md text-muted-foreground text-sm font-medium">
+            <Server size={16} className="shrink-0" />
             Server
-            <span className="nav-badge" style={{ marginLeft: 'auto' }}>OK</span>
+            <span className="ml-auto font-mono text-[11px] bg-brand-dim text-brand px-1.5 py-0.5 rounded-full border border-brand/30">OK</span>
           </div>
         </aside>
 
         {/* MAIN */}
-        <main className="main-content">
-
-          {/* ═══════════════ OVERVIEW TAB ═══════════════ */}
+        <main className="flex-1 p-4 md:p-8 flex flex-col gap-6 min-w-0 overflow-x-hidden md:pb-8 pb-20">
           {activeTab === 'overview' && (
-            <>
-              <div className="page-header">
-                <div>
-                  <h1 className="page-title">Overview</h1>
-                  <p className="page-subtitle">
-                    Live dashboard · auto-refresh 5s ·
-                    last {lastRefresh.toLocaleTimeString()}
-                  </p>
-                </div>
-                <button className="btn btn-secondary" onClick={fetchData}>
-                  <RefreshCw size={14} /> Refresh
-                </button>
-              </div>
-
-              {/* STATS */}
-              <div className="stats-grid">
-                <div
-                  className="stat-card animate-in delay-1"
-                  style={{ '--stat-color': 'var(--green)', '--stat-bg': 'var(--green-dim)' }}
-                >
-                  <div className="stat-card-top">
-                    <span className="stat-card-label">Win Rate</span>
-                    <div className="stat-card-icon"><TrendingUp size={16} /></div>
-                  </div>
-                  <div className="stat-card-value">{(stats.winRate || 0).toFixed(1)}%</div>
-                  <div className="stat-card-trend trend-up">
-                    <ChevronUp size={14} /> Live tracking
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card animate-in delay-2"
-                  style={{ '--stat-color': 'var(--accent)', '--stat-bg': 'var(--accent-dim)' }}
-                >
-                  <div className="stat-card-top">
-                    <span className="stat-card-label">Total Trades</span>
-                    <div className="stat-card-icon"><Crosshair size={16} /></div>
-                  </div>
-                  <div className="stat-card-value">{stats.totalTrades || 0}</div>
-                  <div className="stat-card-trend trend-neutral">
-                    <Minus size={14} /> All time
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card animate-in delay-3"
-                  style={{ '--stat-color': 'var(--yellow)', '--stat-bg': 'var(--yellow-dim)' }}
-                >
-                  <div className="stat-card-top">
-                    <span className="stat-card-label">Open Positions</span>
-                    <div className="stat-card-icon"><Activity size={16} /></div>
-                  </div>
-                  <div className="stat-card-value">{stats.openPositions || 0}</div>
-                  <div className="stat-card-trend trend-neutral">
-                    <Minus size={14} /> Right now
-                  </div>
-                </div>
-              </div>
-
-              {/* GRID */}
-              <div className="dashboard-grid">
-                {/* Positions table */}
-                <div className="card animate-in delay-4">
-                  <div className="card-header">
-                    <h2 className="card-title">
-                      <BarChart2 size={16} className="card-icon" />
-                      Active &amp; Recent Positions
-                    </h2>
-                  </div>
-
-                  <div className="data-table-container">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Token</th>
-                          <th>Status</th>
-                          <th>Entry Price</th>
-                          <th>Size (SOL)</th>
-                          <th>PnL</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {positions.length > 0 ? positions.map((pos, i) => {
-                          const pnlPct = pos.pnlPercent || 0;
-                          return (
-                            <tr key={pos.id || i}>
-                              <td>
-                                <div className="token-cell">
-                                  <TokenAvatar symbol={pos.symbol} />
-                                  <div>
-                                    <div className="token-name">{pos.symbol || 'UNKNOWN'}</div>
-                                    <div className="token-id">#{pos.id}</div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td>
-                                <span className={`badge ${pos.status === 'open' ? 'badge-success' : pos.status === 'closed' ? 'badge-primary' : 'badge-warning'}`}>
-                                  {pos.status || 'open'}
-                                </span>
-                              </td>
-                              <td className="mono">{pos.entryPrice ? `$${pos.entryPrice.toFixed(6)}` : '—'}</td>
-                              <td className="mono">{pos.sizeSol ? pos.sizeSol.toFixed(3) : '—'}</td>
-                              <td className={`mono ${pnlColor(pnlPct)}`} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                                {pnlIcon(pnlPct)}
-                                {pnlPct > 0 ? '+' : ''}{pnlPct.toFixed(2)}%
-                              </td>
-                              <td>
-                                {pos.status === 'open' && (
-                                  <button className="btn btn-danger btn-sm" onClick={() => handleClosePosition(pos.id)}>
-                                    Close
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        }) : (
-                          <tr>
-                            <td colSpan="6">
-                              <div className="empty-state">
-                                <Target size={28} className="empty-state-icon" />
-                                <span className="empty-state-text">No positions yet</span>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Candidate stream */}
-                <div className="card animate-in delay-5" style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div className="card-header">
-                    <h2 className="card-title">
-                      <Zap size={16} className="card-icon" />
-                      Candidate Stream
-                    </h2>
-                    <span className="badge badge-primary">{candidates.length}</span>
-                  </div>
-
-                  <div className="feed-list" style={{ overflowY: 'auto', maxHeight: 480, gap: '0.5rem' }}>
-                    {candidates.length > 0 ? candidates.map((cand, i) => {
-                      const sym = cand.candidate?.token?.symbol || 'UNK';
-                      const age = cand.candidate?.filters?.ageMin;
-                      const mcap = cand.candidate?.filters?.mcapUsd;
-                      return (
-                        <div className="feed-item" key={cand.id || i}>
-                          <div className="feed-item-left">
-                            <div className="feed-item-icon">{sym.slice(0, 3)}</div>
-                            <div>
-                              <div className="feed-item-symbol">{sym}</div>
-                              <div className="feed-item-meta">
-                                {age != null && <span>{age.toFixed(1)}m</span>}
-                                {mcap != null && <span>${(mcap / 1000).toFixed(0)}K</span>}
-                              </div>
-                            </div>
-                          </div>
-                          <span className={`badge ${cand.status === 'buy' ? 'badge-success' : cand.status === 'candidate' ? 'badge-primary' : 'badge-error'}`}>
-                            {cand.status}
-                          </span>
-                        </div>
-                      );
-                    }) : (
-                      <div className="empty-state">
-                        <Activity size={24} className="empty-state-icon" />
-                        <span className="empty-state-text">Scanning for candidates…</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
+            <Overview stats={stats} candidates={candidates} lastRefresh={lastRefresh} fetchData={fetchData} />
           )}
-
-          {/* ═══════════════ STRATEGY TAB ═══════════════ */}
+          {activeTab === 'positions' && (
+            <Positions positions={positions} handleClosePosition={handleClosePosition} />
+          )}
           {activeTab === 'strategy' && (
-            <>
-              <div className="page-header">
-                <div>
-                  <h1 className="page-title">Strategies</h1>
-                  <p className="page-subtitle">Configure and activate your trading strategy</p>
-                </div>
-                <button className="btn btn-primary" onClick={handleSaveStrategy}>
-                  <Save size={14} /> Save &amp; Activate
-                </button>
-              </div>
-
-              <div className="card animate-in">
-                <div className="card-header" style={{ marginBottom: 0 }}>
-                  <h2 className="card-title"><Settings size={16} className="card-icon" /> Select Strategy</h2>
-                </div>
-
-                <div className="section-divider">
-                  <div className="section-divider-line" />
-                  <span className="section-divider-label">Available</span>
-                  <div className="section-divider-line" />
-                </div>
-
-                <div className="strategy-grid">
-                  {strategies.length > 0 ? strategies.map(strat => (
-                    <div
-                      key={strat.id}
-                      className={`strategy-card ${activeStrategy?.id === strat.id ? 'active' : ''}`}
-                      onClick={() => setActiveStrategy(strat)}
-                    >
-                      <div className="strategy-card-name">{strat.name}</div>
-                      <span className={`badge ${strat.enabled ? 'badge-success' : 'badge-blue'}`}>
-                        {strat.enabled ? 'Running' : 'Idle'}
-                      </span>
-                    </div>
-                  )) : (
-                    <div className="empty-state" style={{ gridColumn: '1/-1' }}>
-                      <span className="empty-state-text">No strategies found</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {activeStrategy && (
-                <div className="card animate-in">
-                  <div className="card-header">
-                    <h2 className="card-title">
-                      <Target size={16} className="card-icon" />
-                      {activeStrategy.name} — Parameters
-                    </h2>
-                  </div>
-
-                  {/* Trade size / limits */}
-                  <div className="section-divider">
-                    <div className="section-divider-line" />
-                    <span className="section-divider-label">Position Sizing</span>
-                    <div className="section-divider-line" />
-                  </div>
-                  <div className="form-row" style={{ marginBottom: '1rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Position Size (SOL)</label>
-                      <input type="number" step="0.01" className="form-control"
-                        value={activeStrategy.position_size_sol || 0}
-                        onChange={e => setActiveStrategy({ ...activeStrategy, position_size_sol: Number(e.target.value) })} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Max Open Positions</label>
-                      <input type="number" className="form-control"
-                        value={activeStrategy.max_open_positions || 0}
-                        onChange={e => setActiveStrategy({ ...activeStrategy, max_open_positions: Number(e.target.value) })} />
-                    </div>
-                  </div>
-
-                  {/* TP / SL */}
-                  <div className="section-divider">
-                    <div className="section-divider-line" />
-                    <span className="section-divider-label">Risk Management</span>
-                    <div className="section-divider-line" />
-                  </div>
-                  <div className="form-row" style={{ marginBottom: '1rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Take Profit (%)</label>
-                      <input type="number" className="form-control"
-                        value={activeStrategy.tp_percent || 0}
-                        onChange={e => setActiveStrategy({ ...activeStrategy, tp_percent: Number(e.target.value) })} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Stop Loss (%)</label>
-                      <input type="number" className="form-control"
-                        value={activeStrategy.sl_percent || 0}
-                        onChange={e => setActiveStrategy({ ...activeStrategy, sl_percent: Number(e.target.value) })} />
-                    </div>
-                  </div>
-
-                  {/* Market Cap filters */}
-                  <div className="section-divider">
-                    <div className="section-divider-line" />
-                    <span className="section-divider-label">Market Cap Filter</span>
-                    <div className="section-divider-line" />
-                  </div>
-                  <div className="form-row" style={{ marginBottom: '1rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Min MCap (USD)</label>
-                      <input type="number" className="form-control"
-                        value={activeStrategy.min_mcap_usd || 0}
-                        onChange={e => setActiveStrategy({ ...activeStrategy, min_mcap_usd: Number(e.target.value) })} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Max MCap (USD)</label>
-                      <input type="number" className="form-control"
-                        value={activeStrategy.max_mcap_usd || 0}
-                        onChange={e => setActiveStrategy({ ...activeStrategy, max_mcap_usd: Number(e.target.value) })} />
-                    </div>
-                  </div>
-
-                  {/* LLM */}
-                  <div className="section-divider">
-                    <div className="section-divider-line" />
-                    <span className="section-divider-label">AI Screening</span>
-                    <div className="section-divider-line" />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <Toggle
-                      checked={activeStrategy.use_llm || false}
-                      onChange={e => setActiveStrategy({ ...activeStrategy, use_llm: e.target.checked })}
-                      label="Use LLM for Screening"
-                      desc="AI-powered candidate evaluation"
-                    />
-                    {activeStrategy.use_llm && (
-                      <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                        <label className="form-label">LLM Min Confidence (0–1)</label>
-                        <input type="number" step="0.01" min="0" max="1" className="form-control"
-                          value={activeStrategy.llm_min_confidence || 0}
-                          onChange={e => setActiveStrategy({ ...activeStrategy, llm_min_confidence: Number(e.target.value) })} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
+            <Strategies strategies={strategies} activeStrategy={activeStrategy} setActiveStrategy={setActiveStrategy} handleSaveStrategy={handleSaveStrategy} />
           )}
-
-          {/* ═══════════════ WALLETS TAB ═══════════════ */}
           {activeTab === 'wallets' && (
-            <>
-              <div className="page-header">
-                <div>
-                  <h1 className="page-title">Wallets &amp; PnL</h1>
-                  <p className="page-subtitle">Track external wallets and analyse performance</p>
-                </div>
-              </div>
-
-              <div className="dashboard-grid">
-                {/* PnL Table */}
-                <div className="card animate-in">
-                  <div className="card-header">
-                    <h2 className="card-title">
-                      <Wallet size={16} className="card-icon" />
-                      Tracked Wallets
-                    </h2>
-                    <span className="badge badge-primary">{pnlData.length} wallets</span>
-                  </div>
-
-                  <div className="data-table-container">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Label</th>
-                          <th>Address</th>
-                          <th>Win Rate</th>
-                          <th>Total PnL</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pnlData.length > 0 ? pnlData.map(({ wallet, pnl }, i) => {
-                          const pnlPct = pnl ? pnl.totalPnlPercent * 100 : null;
-                          return (
-                            <tr key={i}>
-                              <td>
-                                <div style={{ fontWeight: 700 }}>{wallet.label}</div>
-                              </td>
-                              <td>
-                                <span className="address-pill">
-                                  {wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}
-                                </span>
-                              </td>
-                              <td className="mono">
-                                {pnl
-                                  ? `${(pnl.winRate * 100).toFixed(1)}% (${pnl.wins}/${pnl.totalTrades})`
-                                  : <span style={{ color: 'var(--text-muted)' }}>No data</span>}
-                              </td>
-                              <td className={`mono ${pnlPct != null ? pnlColor(pnlPct) : ''}`}>
-                                {pnlPct != null ? (
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                                    {pnlIcon(pnlPct)}
-                                    {pnlPct > 0 ? '+' : ''}{pnlPct.toFixed(2)}%
-                                  </span>
-                                ) : '—'}
-                              </td>
-                              <td>
-                                <button className="btn btn-danger btn-sm" onClick={() => handleDeleteWallet(wallet.label)}>
-                                  <Trash2 size={12} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        }) : (
-                          <tr>
-                            <td colSpan="5">
-                              <div className="empty-state">
-                                <Wallet size={24} className="empty-state-icon" />
-                                <span className="empty-state-text">No wallets tracked yet</span>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Add wallet */}
-                <div className="card animate-in delay-2" style={{ height: 'fit-content' }}>
-                  <div className="card-header">
-                    <h2 className="card-title">
-                      <Shield size={16} className="card-icon" />
-                      Add Wallet
-                    </h2>
-                  </div>
-
-                  <form onSubmit={handleAddWallet} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Label (Name)</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g. Smart Money #1"
-                        value={newWalletLabel}
-                        onChange={e => setNewWalletLabel(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Wallet Address (SOL)</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="9HZjPCe…"
-                        value={newWalletAddress}
-                        onChange={e => setNewWalletAddress(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.25rem' }}>
-                      <ArrowUpRight size={14} /> Add Wallet
-                    </button>
-                  </form>
-                </div>
-              </div>
-            </>
+            <Wallets 
+              pnlData={pnlData} 
+              newWalletLabel={newWalletLabel} 
+              setNewWalletLabel={setNewWalletLabel} 
+              newWalletAddress={newWalletAddress} 
+              setNewWalletAddress={setNewWalletAddress} 
+              handleAddWallet={handleAddWallet} 
+              handleDeleteWallet={handleDeleteWallet} 
+            />
           )}
-
         </main>
       </div>
     </div>
