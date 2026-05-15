@@ -257,6 +257,57 @@ export function Settings({ strategies, activeStrategy, setActiveStrategy, global
         />
       </SectionCard>
 
+      {/* ── Global TP/SL Override ── */}
+      <SectionCard icon={Target} title="Global TP/SL Override" accent="rose" defaultOpen={false}>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800/40 border border-zinc-700/50">
+            <div>
+              <span className="text-[11px] font-mono text-rose-400 uppercase tracking-widest">Master Override</span>
+              <div className="text-[10px] text-zinc-500 mt-0.5">When ON, ignores strategy/LLM settings for new buys</div>
+            </div>
+            <Toggle
+              checked={globalSettings.override_tpsl_enabled || false}
+              onChange={e => setGlobalSettings({ ...globalSettings, override_tpsl_enabled: e.target.checked })}
+            />
+          </div>
+
+          <Grid cols={3}>
+            <Field label="Global TP" hint="take profit">
+              <NumberInput 
+                value={globalSettings.default_tp_percent || 0} 
+                suffix="%" 
+                accent="rose"
+                onChange={e => setGlobalSettings({ ...globalSettings, default_tp_percent: Number(e.target.value) })} 
+              />
+            </Field>
+            <Field label="Global SL" hint="stop loss">
+              <NumberInput 
+                value={globalSettings.default_sl_percent || 0} 
+                suffix="%" 
+                accent="rose"
+                onChange={e => setGlobalSettings({ ...globalSettings, default_sl_percent: Number(e.target.value) })} 
+              />
+            </Field>
+            <ToggleCard
+              checked={globalSettings.default_trailing_enabled || false}
+              onChange={e => setGlobalSettings({ ...globalSettings, default_trailing_enabled: e.target.checked })}
+              label="Trailing Stop"
+              desc="Auto-trail"
+              accent="rose"
+            >
+              <Field label="Trail %">
+                <NumberInput 
+                  value={globalSettings.default_trailing_percent || 0} 
+                  suffix="%" 
+                  accent="rose"
+                  onChange={e => setGlobalSettings({ ...globalSettings, default_trailing_percent: Number(e.target.value) })} 
+                />
+              </Field>
+            </ToggleCard>
+          </Grid>
+        </div>
+      </SectionCard>
+
       {/* ── Strategy Selector ── */}
       <SectionCard icon={Layers} title="Strategy" accent="brand" defaultOpen={true}>
         {strategies.length > 0 ? (

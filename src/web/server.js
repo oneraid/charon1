@@ -119,6 +119,11 @@ export function startWebServer(port = 3000) {
         llm_candidate_pick_count: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('llm_candidate_pick_count')?.value || 10),
         llm_candidate_max_age_ms: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('llm_candidate_max_age_ms')?.value || 600000),
         max_open_positions: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('max_open_positions')?.value || 3),
+        override_tpsl_enabled: db.prepare('SELECT value FROM settings WHERE key = ?').get('override_tpsl_enabled')?.value === 'true',
+        default_tp_percent: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('default_tp_percent')?.value || 50),
+        default_sl_percent: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('default_sl_percent')?.value || -25),
+        default_trailing_percent: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('default_trailing_percent')?.value || 20),
+        default_trailing_enabled: db.prepare('SELECT value FROM settings WHERE key = ?').get('default_trailing_enabled')?.value !== 'false',
       };
       res.json({ strategies, global });
     } catch (error) {

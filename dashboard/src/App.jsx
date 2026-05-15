@@ -21,7 +21,15 @@ function App() {
   const [candidates, setCandidates] = useState([]);
   const [strategies, setStrategies] = useState([]);
   const [activeStrategy, setActiveStrategy] = useState(null);
-  const [globalSettings, setGlobalSettings] = useState({ trading_mode: 'dry_run' });
+  const [globalSettings, setGlobalSettings] = useState({ 
+    trading_mode: 'dry_run', 
+    agent_enabled: true,
+    override_tpsl_enabled: false,
+    default_tp_percent: 50,
+    default_sl_percent: -25,
+    default_trailing_percent: 20,
+    default_trailing_enabled: true
+  });
   const [pnlData, setPnlData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -48,7 +56,15 @@ function App() {
       setPnlData(pnlRes.pnlData || []);
       
       const active = setRes.strategies?.find(s => s.enabled);
-      const currentGlobal = setRes.global || { trading_mode: 'dry_run', agent_enabled: true };
+      const currentGlobal = setRes.global || { 
+        trading_mode: 'dry_run', 
+        agent_enabled: true,
+        override_tpsl_enabled: false,
+        default_tp_percent: 50,
+        default_sl_percent: -25,
+        default_trailing_percent: 20,
+        default_trailing_enabled: true
+      };
 
       // Baseline for global
       if (!lastSavedGlobalRef.current) {
@@ -280,7 +296,15 @@ function App() {
         {/* MAIN */}
         <main className="flex-1 p-4 md:p-8 flex flex-col gap-6 min-w-0 overflow-x-hidden md:pb-8 pb-20">
           {activeTab === 'overview' && (
-            <Overview stats={stats} candidates={candidates} lastRefresh={lastRefresh} fetchData={fetchData} />
+            <Overview 
+              stats={stats} 
+              candidates={candidates} 
+              lastRefresh={lastRefresh} 
+              fetchData={fetchData} 
+              globalSettings={globalSettings}
+              activeStrategy={activeStrategy}
+              positions={positions}
+            />
           )}
           {activeTab === 'positions' && (
             <Positions positions={positions} handleClosePosition={handleClosePosition} />
