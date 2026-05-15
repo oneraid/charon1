@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, BarChart2, Server, Settings, Wallet, Target } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Activity, BarChart2, Server, Settings, Wallet, Target, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import './index.css';
 
@@ -9,7 +9,7 @@ import { LiveClock } from '@/components/ui/LiveClock';
 // Pages
 import { Overview } from '@/pages/Overview';
 import { Positions } from '@/pages/Positions';
-import { Strategies } from '@/pages/Strategies';
+import { Settings as SettingsPage } from './pages/Settings';
 import { Wallets } from '@/pages/Wallets';
 
 const API_BASE = 'http://localhost:3000/api';
@@ -21,9 +21,13 @@ function App() {
   const [candidates, setCandidates] = useState([]);
   const [strategies, setStrategies] = useState([]);
   const [activeStrategy, setActiveStrategy] = useState(null);
+  const [globalSettings, setGlobalSettings] = useState({ trading_mode: 'dry_run' });
   const [pnlData, setPnlData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [isSaving, setIsSaving] = useState(false);
+  const lastSavedStrategyRef = useRef(null);
+  const lastSavedGlobalRef = useRef(null);
 
   const [newWalletLabel, setNewWalletLabel] = useState('');
   const [newWalletAddress, setNewWalletAddress] = useState('');
@@ -42,8 +46,27 @@ function App() {
       setCandidates(candRes || []);
       setStrategies(setRes.strategies || []);
       setPnlData(pnlRes.pnlData || []);
+      
       const active = setRes.strategies?.find(s => s.enabled);
-      if (active && !activeStrategy) setActiveStrategy(active);
+      const currentGlobal = setRes.global || { trading_mode: 'dry_run', agent_enabled: true };
+
+      // Baseline for global
+      if (!lastSavedGlobalRef.current) {
+        lastSavedGlobalRef.current = JSON.stringify(currentGlobal);
+      }
+
+      // ONLY update global if no pending edits
+      if (JSON.stringify(globalSettings) === lastSavedGlobalRef.current) {
+        setGlobalSettings(currentGlobal);
+        lastSavedGlobalRef.current = JSON.stringify(currentGlobal);
+      }
+
+      // ONLY update strategy if no pending edits
+      if (active && (!activeStrategy || JSON.stringify(activeStrategy) === lastSavedStrategyRef.current)) {
+        setActiveStrategy(active);
+        lastSavedStrategyRef.current = JSON.stringify(active);
+      }
+      
       setLastRefresh(new Date());
       setLoading(false);
     } catch (err) {
@@ -70,18 +93,104 @@ function App() {
     } catch { alert('Failed to close position'); }
   };
 
-  const handleSaveStrategy = async () => {
+  // Auto-save Global Settings
+  useEffect(() => {
+    const current = JSON.stringify(globalSettings);
+    if (current === lastSavedGlobalRef.current) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSaving(true);
+        await fetch(`${API_BASE}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ global: globalSettings }),
+        });
+        lastSavedGlobalRef.current = current;
+        setTimeout(() => setIsSaving(false), 1500);
+      } catch (err) {
+        console.error('Global save error:', err);
+        setIsSaving(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [globalSettings]);
+
+  // Auto-save Strategy Changes (Parameters only)
+  useEffect(() => {
     if (!activeStrategy) return;
+    
+    // Only save if parameters changed, not the enabled status
+    // We compare a version without the 'enabled' field
+    const { enabled: _, ...params } = activeStrategy;
+    const currentParams = JSON.stringify(params);
+    
+    if (lastSavedStrategyRef.current === currentParams) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSaving(true);
+        await fetch(`${API_BASE}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            strategyId: activeStrategy.id, 
+            config: activeStrategy,
+            // Don't send isActive here to avoid collision with handleToggleStrategy
+          }),
+        });
+        lastSavedStrategyRef.current = currentParams;
+        setTimeout(() => setIsSaving(false), 1500);
+      } catch (err) {
+        console.error('Strategy save error:', err);
+        setIsSaving(false);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [activeStrategy]);
+
+  // Handler to switch strategy view without triggering auto-save
+  const handleSelectStrategy = (strat) => {
+    const { enabled: _, ...params } = strat;
+    lastSavedStrategyRef.current = JSON.stringify(params);
+    setActiveStrategy(strat);
+  };
+
+  const handleToggleStrategy = async (id, currentStatus) => {
     try {
+      const newStatus = !currentStatus;
+      console.log(`[UI] Toggling strategy ${id} to ${newStatus}`);
+
+      // OPTIMISTIC UI: Update the local strategies list immediately
+      setStrategies(prev => prev.map(s => ({
+        ...s,
+        enabled: s.id === id ? newStatus : (newStatus ? false : s.enabled)
+      })));
+
+      // If we are viewing this strategy, update its active view state too
+      if (activeStrategy?.id === id) {
+        setActiveStrategy(prev => ({ ...prev, enabled: newStatus }));
+      }
+
+      // Send to server
       await fetch(`${API_BASE}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strategyId: activeStrategy.id, config: activeStrategy, isActive: true }),
+        body: JSON.stringify({ 
+          strategyId: id, 
+          isActive: newStatus 
+        }),
       });
-      alert('Strategy saved and activated!');
-      fetchData();
-    } catch { alert('Failed to save strategy'); }
+      
+      // Give server time to update, then refresh
+      setTimeout(fetchData, 800);
+    } catch (err) {
+      console.error('Toggle error:', err);
+      fetchData(); 
+    }
   };
+
+
 
   const handleAddWallet = async (e) => {
     e.preventDefault();
@@ -109,7 +218,7 @@ function App() {
   const navItems = [
     { id: 'overview', label: 'Overview', Icon: BarChart2 },
     { id: 'positions', label: 'Positions', Icon: Target },
-    { id: 'strategy', label: 'Strategies', Icon: Settings },
+    { id: 'settings', label: 'Settings', Icon: Settings },
     { id: 'wallets', label: 'Wallets & PnL', Icon: Wallet },
   ];
 
@@ -176,8 +285,15 @@ function App() {
           {activeTab === 'positions' && (
             <Positions positions={positions} handleClosePosition={handleClosePosition} />
           )}
-          {activeTab === 'strategy' && (
-            <Strategies strategies={strategies} activeStrategy={activeStrategy} setActiveStrategy={setActiveStrategy} handleSaveStrategy={handleSaveStrategy} />
+          {activeTab === 'settings' && (
+            <SettingsPage 
+              strategies={strategies} 
+              activeStrategy={activeStrategy} 
+              setActiveStrategy={handleSelectStrategy} 
+              globalSettings={globalSettings}
+              setGlobalSettings={setGlobalSettings}
+              handleToggleStrategy={handleToggleStrategy}
+            />
           )}
           {activeTab === 'wallets' && (
             <Wallets 
@@ -191,6 +307,20 @@ function App() {
             />
           )}
         </main>
+      </div>
+
+      {/* Auto-save Notification */}
+      <div className={cn(
+        "fixed bottom-6 right-6 z-[200] transition-all duration-500 transform",
+        isSaving ? "translate-y-0 opacity-100" : "translate-y-12 opacity-0 pointer-events-none"
+      )}>
+        <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-zinc-900 border border-brand/30 text-brand shadow-[0_8px_32px_rgba(0,255,170,0.15)] backdrop-blur-md">
+          <CheckCircle2 size={18} className="animate-bounce" />
+          <div className="flex flex-col">
+            <span className="text-[13px] font-bold tracking-tight">Configuration Saved</span>
+            <span className="text-[10px] text-zinc-500 font-mono">Strategy auto-updated</span>
+          </div>
+        </div>
       </div>
     </div>
   );

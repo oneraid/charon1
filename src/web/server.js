@@ -103,8 +103,24 @@ export function startWebServer(port = 3000) {
 
   app.get('/api/settings', (req, res) => {
     try {
+      // Sanity check: ensure only one strategy is enabled in DB
+      const enabledCount = db.prepare('SELECT COUNT(*) as count FROM strategies WHERE enabled = 1').get().count;
+      if (enabledCount > 1) {
+        console.log(`[API] DB Inconsistency detected (${enabledCount} enabled). Fixing...`);
+        const firstActive = db.prepare('SELECT id FROM strategies WHERE enabled = 1 LIMIT 1').get().id;
+        db.prepare('UPDATE strategies SET enabled = 0').run();
+        db.prepare('UPDATE strategies SET enabled = 1 WHERE id = ?').run(firstActive);
+      }
+
       const strategies = allStrategies();
-      res.json({ strategies });
+      const global = {
+        trading_mode: db.prepare('SELECT value FROM settings WHERE key = ?').get('trading_mode')?.value || 'dry_run',
+        agent_enabled: db.prepare('SELECT value FROM settings WHERE key = ?').get('agent_enabled')?.value !== 'false',
+        llm_candidate_pick_count: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('llm_candidate_pick_count')?.value || 10),
+        llm_candidate_max_age_ms: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('llm_candidate_max_age_ms')?.value || 600000),
+        max_open_positions: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('max_open_positions')?.value || 3),
+      };
+      res.json({ strategies, global });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -112,13 +128,39 @@ export function startWebServer(port = 3000) {
 
   app.post('/api/settings', (req, res) => {
     try {
-      const { strategyId, config, isActive } = req.body;
+      const { strategyId, config, isActive, global } = req.body;
+      
+      // Update specific strategy config
       if (strategyId && config) {
         updateStrategyConfig(strategyId, config);
       }
-      if (isActive) {
-        setActiveStrategy(strategyId);
+      
+      // Set active strategy
+      if (strategyId !== undefined && isActive !== undefined) {
+        const isTrue = isActive === true || isActive === 'true';
+        // Only log if it's a real toggle request
+        console.log(`[API] Strategy Toggle Request: ${strategyId} -> ${isTrue}`);
+        
+        if (isTrue) {
+          setActiveStrategy(strategyId);
+        } else {
+          db.prepare('UPDATE strategies SET enabled = 0 WHERE id = ?').run(strategyId);
+        }
       }
+
+      // Update global settings
+      if (global) {
+        console.log('[API] Global settings update request:', global);
+        for (const [key, value] of Object.entries(global)) {
+          const valStr = String(value);
+          db.prepare(`
+            INSERT INTO settings (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+          `).run(key, valStr);
+          console.log(`[API] Saved to DB: ${key} = ${valStr}`);
+        }
+      }
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });

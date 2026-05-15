@@ -8,7 +8,7 @@ export function LiveClock() {
   }, []);
   return (
     <span className="font-mono text-xs text-muted-foreground tracking-wider">
-      {time.toUTCString().slice(17, 25)} UTC
+      {time.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour12: false })} GMT+7
     </span>
   );
 }

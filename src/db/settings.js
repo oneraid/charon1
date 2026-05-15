@@ -31,7 +31,7 @@ export function activeStrategy() {
     if (fallback) return fallback;
     return defaultStrategy();
   }
-  const config = { id: row.id, name: row.name, ...JSON.parse(row.config_json) };
+  const config = { ...JSON.parse(row.config_json), id: row.id, name: row.name, enabled: Boolean(row.enabled) };
   strategyCache.id = row.id;
   strategyCache.config = config;
   strategyCache.at = Date.now();
@@ -41,15 +41,15 @@ export function activeStrategy() {
 export function strategyById(id) {
   const row = db.prepare('SELECT * FROM strategies WHERE id = ?').get(id);
   if (!row) return null;
-  return { id: row.id, name: row.name, ...JSON.parse(row.config_json) };
+  return { ...JSON.parse(row.config_json), id: row.id, name: row.name, enabled: Boolean(row.enabled) };
 }
 
 export function allStrategies() {
   return db.prepare('SELECT * FROM strategies ORDER BY id').all().map(row => ({
+    ...JSON.parse(row.config_json),
     id: row.id,
     name: row.name,
     enabled: Boolean(row.enabled),
-    ...JSON.parse(row.config_json),
   }));
 }
 
