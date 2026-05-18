@@ -9,6 +9,13 @@ export function setSetting(key, value) {
     INSERT INTO settings (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(key, String(value));
+
+  if (key === 'dry_run_wallet_balance') {
+    db.prepare(`
+      INSERT INTO settings (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run('dry_run_insufficient_notified', 'false');
+  }
 }
 
 export function boolSetting(key, fallback = false) {

@@ -159,23 +159,27 @@ export async function handleApprovedBuy(selectedRow, decision, batchId, rows = [
         const strat = activeStrategy();
         const sizeSol = strat.position_size_sol ?? numSetting('dry_run_buy_sol', 0.1);
         if (balance < sizeSol) {
-          console.log(`[agent] Insufficient dry-run balance. Have ${balance.toFixed(4)} SOL, need ${sizeSol.toFixed(2)} SOL. Pausing agent and skipping dry buy.`);
-          setSetting('agent_enabled', 'false');
-          logDecisionEvent({
-            batchId,
-            triggerCandidateId,
-            selectedRow: freshSelectedRow,
-            rows: executionRows,
-            decision,
-            mode,
-            action: 'dry_run_skipped_insufficient_balance',
-            guardrails: { dryBalance: balance, sizeSol },
-          });
-          await sendTelegram(
-            `⚠️ <b>Dry-run buy skipped: Insufficient balance</b>\n` +
-            `Need <b>${sizeSol.toFixed(4)} SOL</b> but dry-run balance is <b>${balance.toFixed(4)} SOL</b>.\n\n` +
-            `🤖 <b>Agent automatically paused (disabled)</b> to prevent notification spam. Please top-up simulated balance or switch to live mode, then re-enable the agent.`
-          );
+          console.log(`[agent] Insufficient dry-run balance. Have ${balance.toFixed(4)} SOL, need ${sizeSol.toFixed(2)} SOL. Skipping dry buy.`);
+          
+          const alreadyNotified = setting('dry_run_insufficient_notified', 'false') === 'true';
+          if (!alreadyNotified) {
+            setSetting('dry_run_insufficient_notified', 'true');
+            logDecisionEvent({
+              batchId,
+              triggerCandidateId,
+              selectedRow: freshSelectedRow,
+              rows: executionRows,
+              decision,
+              mode,
+              action: 'dry_run_skipped_insufficient_balance',
+              guardrails: { dryBalance: balance, sizeSol },
+            });
+            await sendTelegram(
+              `⚠️ <b>Dry-run buy skipped: Insufficient balance</b>\n` +
+              `Need <b>${sizeSol.toFixed(4)} SOL</b> but dry-run balance is <b>${balance.toFixed(4)} SOL</b>.\n\n` +
+              `ℹ️ <i>Bot agent remains active and will resume buying automatically once you top-up or credit back the simulated balance!</i>`
+            );
+          }
           return;
         }
         const nextBalance = balance - sizeSol;
