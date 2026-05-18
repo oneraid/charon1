@@ -37,6 +37,7 @@ export async function handleMessage(msg) {
   if (!text.startsWith('/')) return;
   if (text.startsWith('/menu')) return sendMenu(chatId);
   if (text.startsWith('/positions')) return sendPositions(chatId);
+  if (text.startsWith('/history')) return sendHistory(chatId);
   if (text.startsWith('/filters')) return bot.sendMessage(chatId, filtersText(), { parse_mode: 'HTML' });
   if (text.startsWith('/strategy')) {
     const parts = text.split(/\s+/);
@@ -157,9 +158,15 @@ export async function sendCandidate(chatId, id) {
 }
 
 export async function sendPositions(chatId) {
-  const rows = allPositions(12);
-  const text = rows.length ? rows.map(formatPosition).join('\n\n') : 'No dry-run positions yet.';
-  await bot.sendMessage(chatId, `📍 <b>Positions</b>\n\n${text}`, { parse_mode: 'HTML', disable_web_page_preview: true });
+  const rows = db.prepare("SELECT * FROM dry_run_positions WHERE status = 'open' ORDER BY opened_at_ms DESC LIMIT 12").all();
+  const text = rows.length ? rows.map(formatPosition).join('\n\n') : 'No active dry-run positions.';
+  await bot.sendMessage(chatId, `📍 <b>Active Positions</b>\n\n${text}`, { parse_mode: 'HTML', disable_web_page_preview: true });
+}
+
+export async function sendHistory(chatId) {
+  const rows = db.prepare("SELECT * FROM dry_run_positions WHERE status = 'closed' ORDER BY closed_at_ms DESC LIMIT 12").all();
+  const text = rows.length ? rows.map(formatPosition).join('\n\n') : 'No closed dry-run positions yet.';
+  await bot.sendMessage(chatId, `📜 <b>Closed History</b>\n\n${text}`, { parse_mode: 'HTML', disable_web_page_preview: true });
 }
 
 export async function sendPosition(chatId, id, query = null) {
@@ -257,7 +264,8 @@ export function setupTelegram() {
     { command: 'menu', description: 'Open Charon menu' },
     { command: 'strategy', description: 'Show/switch strategy' },
     { command: 'stratset', description: 'Set strategy config (stratset id key value)' },
-    { command: 'positions', description: 'Show dry-run positions' },
+    { command: 'positions', description: 'Show active dry-run positions' },
+    { command: 'history', description: 'Show closed dry-run positions' },
     { command: 'candidate', description: 'Show candidate by mint' },
     { command: 'filters', description: 'Show filters' },
     { command: 'pnl', description: 'Show saved-wallet PnL' },

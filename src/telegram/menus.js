@@ -1,6 +1,6 @@
 import { escapeHtml, fmtPct, fmtSol, fmtUsd, short } from '../format.js';
 import { numSetting, boolSetting, setting, activeStrategy, allStrategies } from '../db/settings.js';
-import { openPositionCount, tradingMode, allPositions } from '../db/positions.js';
+import { openPositionCount, tradingMode, allPositions, openPositions } from '../db/positions.js';
 import { savedWallets } from '../enrichment/wallets.js';
 import { gmgnStatusText } from '../enrichment/gmgn.js';
 import { formatPosition } from './format.js';
@@ -191,9 +191,9 @@ export function walletsText() {
 }
 
 export function positionsText() {
-  const rows = allPositions(12);
-  const text = rows.length ? rows.map(formatPosition).join('\n\n') : 'No dry-run positions yet.';
-  return `📍 <b>Positions</b>\n\n${text}`;
+  const rows = openPositions().slice(0, 12);
+  const text = rows.length ? rows.map(formatPosition).join('\n\n') : 'No active dry-run positions.';
+  return `📍 <b>Active Positions</b>\n\n${text}`;
 }
 
 export function strategyMenuText() {
