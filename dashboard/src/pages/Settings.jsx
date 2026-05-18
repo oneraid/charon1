@@ -251,10 +251,41 @@ export function Settings({ strategies, activeStrategy, setActiveStrategy, global
 
       {/* ── Trading Mode ── */}
       <SectionCard icon={Activity} title="Trading Mode" accent="sky" defaultOpen={true}>
-        <ModeSelector
-          value={globalSettings.trading_mode}
-          onChange={mode => setGlobalSettings({ ...globalSettings, trading_mode: mode })}
-        />
+        <div className="flex flex-col gap-4">
+          <ModeSelector
+            value={globalSettings.trading_mode}
+            onChange={mode => setGlobalSettings({ ...globalSettings, trading_mode: mode })}
+          />
+          
+          {globalSettings.trading_mode === 'dry_run' && (
+            <div className="mt-2 pt-4 border-t border-zinc-800 flex flex-col gap-3">
+              <ToggleCard
+                checked={globalSettings.dry_run_wallet_balance !== 'off'}
+                onChange={e => {
+                  const newBalance = e.target.checked ? '1.0' : 'off';
+                  setGlobalSettings({ ...globalSettings, dry_run_wallet_balance: newBalance });
+                }}
+                label="Simulated SOL Balance"
+                desc="Limit trading bot by simulated budget"
+                accent="sky"
+              >
+                <Field label="Simulated Balance" hint="budget in SOL">
+                  <NumberInput
+                    value={globalSettings.dry_run_wallet_balance === 'off' ? 0.0 : Number(globalSettings.dry_run_wallet_balance)}
+                    step={0.1}
+                    min={0}
+                    suffix="SOL"
+                    accent="sky"
+                    onChange={e => {
+                      const val = Math.max(0, Number(e.target.value));
+                      setGlobalSettings({ ...globalSettings, dry_run_wallet_balance: String(val) });
+                    }}
+                  />
+                </Field>
+              </ToggleCard>
+            </div>
+          )}
+        </div>
       </SectionCard>
 
       {/* ── Global TP/SL Override ── */}

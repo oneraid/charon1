@@ -115,11 +115,16 @@ export function filtersKeyboard() {
 
 export function agentText() {
   const strat = activeStrategy();
+  const dryBalanceSetting = setting('dry_run_wallet_balance', 'off');
+  const dryBalanceText = dryBalanceSetting !== 'off'
+    ? `${Number(dryBalanceSetting).toFixed(4)} SOL`
+    : 'unlimited';
   return [
     '🛶 <b>Charon Agent</b>',
     `Strategy: <b>${escapeHtml(strat.name)}</b>`,
     `Agent: <b>${boolSetting('agent_enabled', true) ? 'on' : 'off'}</b>`,
     `Mode: <b>${escapeHtml(tradingMode())}</b>`,
+    `Dry-run Balance: <b>${dryBalanceText}</b>`,
     `Global Override: <b>${boolSetting('override_tpsl_enabled', false) ? 'on' : 'off'}</b>`,
     `LLM: <b>${strat.use_llm && ENABLE_LLM && LLM_API_KEY ? 'configured' : 'disabled'}</b>`,
     `Confidence: ${fmtPct(strat.llm_min_confidence || numSetting('llm_min_confidence', 75))}`,

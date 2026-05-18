@@ -124,3 +124,14 @@ export async function executeJupiterSwap({ inputMint, outputMint, amount }) {
     outputAmount: String(executed?.outputAmountResult || executed?.totalOutputAmount || order?.outAmount || ''),
   };
 }
+
+export async function getLiveWalletBalanceSOL() {
+  if (!liveWallet || !solanaConnection) return null;
+  try {
+    const lamports = await solanaConnection.getBalance(liveWallet.publicKey, 'confirmed');
+    return lamports / 1e9;
+  } catch (err) {
+    console.log(`[live] failed to fetch SOL balance: ${err.message}`);
+    return null;
+  }
+}

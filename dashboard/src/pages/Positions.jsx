@@ -41,6 +41,13 @@ const formatMcap = (v) => {
   return v > 1_000_000 ? `$${(v / 1_000_000).toFixed(2)}M` : `$${(v / 1000).toFixed(1)}K`;
 };
 
+const formatPrice = (v) => {
+  if (!v) return '—';
+  if (v >= 1) return `$${Number(v).toFixed(2)}`;
+  if (v >= 0.01) return `$${Number(v).toFixed(4)}`;
+  return `$${Number(v).toFixed(8)}`;
+};
+
 // Compact PnL bar strip
 function PnlBar({ value }) {
   const capped = Math.max(-100, Math.min(100, value));
@@ -148,11 +155,18 @@ function SummaryBar({ positions }) {
   );
 }
 
-export function Positions({ positions, handleClosePosition }) {
+export function Positions({ positions, handleClosePosition, stats }) {
   const [filter, setFilter] = useState('open');
   const [editingRule, setEditingRule] = useState(null);
   const [copied, setCopied] = useState(null);
-  const filteredPositions = positions.filter(p => p.status === filter);
+  const filteredPositions = positions
+    .filter(p => p.status === filter)
+    .sort((a, b) => {
+      if (filter === 'closed') {
+        return (b.closed_at_ms || 0) - (a.closed_at_ms || 0);
+      }
+      return (b.opened_at_ms || 0) - (a.opened_at_ms || 0);
+    });
 
   const handleCopy = (mint, id) => {
     navigator.clipboard.writeText(mint);
@@ -240,8 +254,8 @@ export function Positions({ positions, handleClosePosition }) {
             <thead>
               <tr className="border-b border-zinc-800/60">
                 {(filter === 'open'
-                  ? ['Token', 'Mode', 'Entry · Size', 'Age', 'TP / SL', 'PnL', 'Action']
-                  : ['Token', 'Mode', 'Entry · Size', 'Age', 'TP / SL', 'PnL', 'Status']
+                  ? ['Token', 'Mode', 'Entry', 'Size', 'Age', 'TP / SL', 'PnL', 'Action']
+                  : ['Token', 'Mode', 'Entry', 'Size', 'Age', 'TP / SL', 'PnL', 'Status']
                 ).map(col => (
                   <th key={col} className="px-4 py-2.5 text-left font-mono text-[9px] font-normal uppercase tracking-[0.15em] text-zinc-600 whitespace-nowrap">
                     {col}
@@ -256,6 +270,12 @@ export function Positions({ positions, handleClosePosition }) {
                   : pos.entry_mcap && pos.high_water_mcap
                     ? (pos.high_water_mcap / pos.entry_mcap - 1) * 100
                     : 0;
+
+                const pnlSol = pos.status === 'closed'
+                  ? (pos.pnl_sol || 0)
+                  : (pos.size_sol || 0) * (pnlPct / 100);
+                const solPrice = stats?.solPriceUsd || 170;
+                const pnlUsd = pnlSol * solPrice;
 
                 return (
                   <tr
@@ -317,13 +337,23 @@ export function Positions({ positions, handleClosePosition }) {
                       </div>
                     </td>
 
-                    {/* Entry · Size */}
+                    {/* Entry */}
                     <td className="px-4 py-3 align-middle">
                       <div className="font-mono text-[12px] text-zinc-200 font-semibold leading-none">
                         {formatMcap(pos.entry_mcap)}
                       </div>
-                      <div className="font-mono text-[10px] text-zinc-500 mt-1">
+                      <div className="font-mono text-[10px] text-zinc-500 mt-1 leading-none">
+                        {formatPrice(pos.entry_price)}
+                      </div>
+                    </td>
+
+                    {/* Size */}
+                    <td className="px-4 py-3 align-middle">
+                      <div className="font-mono text-[12px] text-zinc-200 font-semibold leading-none">
                         {pos.size_sol ? `${pos.size_sol.toFixed(3)} SOL` : '—'}
+                      </div>
+                      <div className="font-mono text-[10px] text-zinc-500 mt-1 leading-none">
+                        {pos.size_sol ? `~$${(pos.size_sol * solPrice).toFixed(2)}` : '—'}
                       </div>
                     </td>
 
@@ -378,9 +408,17 @@ export function Positions({ positions, handleClosePosition }) {
 
                     {/* PnL */}
                     <td className="px-4 py-3 align-middle">
-                      <div className={cn("flex items-center gap-1 font-mono text-[13px] font-bold", pnlColor(pnlPct))}>
+                      <div className={cn("flex items-center gap-1 font-mono text-[13px] font-bold leading-none", pnlColor(pnlPct))}>
                         {pnlIcon(pnlPct)}
                         {pnlPct > 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                      </div>
+                      <div className="font-mono text-[10px] text-zinc-500 mt-1 flex flex-col gap-0.5 leading-none">
+                        <span className={cn(pnlSol > 0 ? 'text-emerald-500/80' : pnlSol < 0 ? 'text-rose-500/80' : 'text-zinc-500')}>
+                          {pnlSol > 0 ? '+' : ''}{pnlSol.toFixed(4)} SOL
+                        </span>
+                        <span className="text-[9px] text-zinc-600">
+                          {pnlUsd > 0 ? '+' : ''}${pnlUsd.toFixed(2)} USD
+                        </span>
                       </div>
                       <div className="mt-1.5 w-20">
                         <PnlBar value={pnlPct} />
@@ -404,7 +442,7 @@ export function Positions({ positions, handleClosePosition }) {
                 );
               }) : (
                 <tr>
-                  <td colSpan="7" className="text-center py-16">
+                  <td colSpan="8" className="text-center py-16">
                     <div className="flex flex-col items-center gap-3 text-zinc-700">
                       <Target size={32} strokeWidth={1} className="opacity-40" />
                       <span className="font-mono text-[12px] uppercase tracking-widest">

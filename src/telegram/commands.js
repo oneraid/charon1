@@ -3,7 +3,7 @@ import { TELEGRAM_CHAT_ID } from '../config.js';
 import { now, json } from '../utils.js';
 import { escapeHtml, fmtPct } from '../format.js';
 import { db } from '../db/connection.js';
-import { numSetting, boolSetting, setSetting, activeStrategy, setActiveStrategy, strategyById, updateStrategyConfig } from '../db/settings.js';
+import { numSetting, boolSetting, setting, setSetting, activeStrategy, setActiveStrategy, strategyById, updateStrategyConfig } from '../db/settings.js';
 import { candidateById, latestCandidateByMint, updateCandidateStatus } from '../db/candidates.js';
 import { storeDecision, logDecisionEvent } from '../db/decisions.js';
 import {
@@ -130,6 +130,7 @@ export async function handleMessage(msg) {
       'llm_candidate_max_age_ms',
       'max_open_positions',
       'dry_run_buy_sol',
+      'dry_run_wallet_balance',
       'default_tp_percent',
       'default_sl_percent',
       'default_trailing_enabled',
@@ -138,7 +139,8 @@ export async function handleMessage(msg) {
     if (!valid.has(key) || value == null) {
       return bot.sendMessage(chatId, `Usage: /setfilter &lt;name&gt; &lt;value&gt;\n\n${filtersText()}`, { parse_mode: 'HTML' });
     }
-    setSetting(key, value === 'off' ? '0' : value);
+    const val = (key === 'dry_run_wallet_balance' && value === 'off') ? 'off' : (value === 'off' ? '0' : value);
+    setSetting(key, val);
     return bot.sendMessage(chatId, filtersText(), { parse_mode: 'HTML' });
   }
 }
@@ -195,6 +197,20 @@ export async function closePosition(chatId, id, reason) {
     INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
     VALUES (?, ?, 'sell', ?, ?, ?, ?, ?, ?, ?)
   `).run(id, row.mint, now(), price, mcap, row.size_sol, row.token_amount_est, reason, json({ pnlPercent, pnlSol, sell }));
+
+  if (row.execution_mode !== 'live') {
+    const dryBalanceSetting = setting('dry_run_wallet_balance', 'off');
+    if (dryBalanceSetting !== 'off') {
+      const balance = Number(dryBalanceSetting);
+      if (Number.isFinite(balance)) {
+        const returnedSol = Number(row.size_sol) + pnlSol;
+        const nextBalance = balance + returnedSol;
+        setSetting('dry_run_wallet_balance', String(nextBalance));
+        console.log(`[command] Dry-run balance credited: ${balance.toFixed(4)} -> ${nextBalance.toFixed(4)} SOL (returned ${returnedSol.toFixed(4)} SOL from manual close of position #${id})`);
+      }
+    }
+  }
+
   const label = row.execution_mode === 'live' ? 'Closed live position' : 'Closed dry-run position';
   await bot.sendMessage(chatId, `${label} #${id}: ${escapeHtml(reason)} ${fmtPct(pnlPercent)}`, { parse_mode: 'HTML' });
 }

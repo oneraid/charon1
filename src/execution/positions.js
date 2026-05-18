@@ -1,5 +1,5 @@
 import { now, json } from '../utils.js';
-import { numSetting, boolSetting, strategyById } from '../db/settings.js';
+import { numSetting, boolSetting, strategyById, setting, setSetting } from '../db/settings.js';
 import { db } from '../db/connection.js';
 import { firstPositiveNumber, marketCapFromGmgn, tokenPriceFromGmgn } from '../utils.js';
 import { fetchGmgnTokenInfo } from '../enrichment/gmgn.js';
@@ -214,6 +214,17 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
       INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
       VALUES (?, ?, 'sell', ?, ?, ?, ?, ?, ?, ?)
     `).run(position.id, position.mint, now(), price, mcap, position.size_sol, position.token_amount_est, exitReason, json({ pnlPercent, pnlSol }));
+
+    const dryBalanceSetting = setting('dry_run_wallet_balance', 'off');
+    if (dryBalanceSetting !== 'off') {
+      const balance = Number(dryBalanceSetting);
+      if (Number.isFinite(balance)) {
+        const returnedSol = Number(position.size_sol) + pnlSol;
+        const nextBalance = balance + returnedSol;
+        setSetting('dry_run_wallet_balance', String(nextBalance));
+        console.log(`[position] Dry-run balance credited: ${balance.toFixed(4)} -> ${nextBalance.toFixed(4)} SOL (returned ${returnedSol.toFixed(4)} SOL from position #${position.id})`);
+      }
+    }
     closed = true;
   }
   return {

@@ -16,7 +16,7 @@ const API_BASE = 'http://localhost:3000/api';
 
 function App() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [stats, setStats] = useState({ totalTrades: 0, winRate: 0, openPositions: 0 });
+  const [stats, setStats] = useState({ totalTrades: 0, winRate: 0, openPositions: 0, realWalletBalance: undefined });
   const [positions, setPositions] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [strategies, setStrategies] = useState([]);
@@ -24,6 +24,7 @@ function App() {
   const [globalSettings, setGlobalSettings] = useState({ 
     trading_mode: 'dry_run', 
     agent_enabled: true,
+    dry_run_wallet_balance: 'off',
     override_tpsl_enabled: false,
     default_tp_percent: 50,
     default_sl_percent: -25,
@@ -31,6 +32,16 @@ function App() {
     default_trailing_enabled: true
   });
   const [pnlData, setPnlData] = useState([]);
+  const [systemInfo, setSystemInfo] = useState({
+    solanaRpc: 'Not Connected',
+    jupiterApi: 'Not Connected',
+    gmgnApi: 'Not Connected',
+    llmApi: 'Not Connected',
+    signalServer: 'Not Connected',
+    dbPath: 'loading...',
+    nodeVersion: 'loading...',
+    platform: 'loading...'
+  });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isSaving, setIsSaving] = useState(false);
@@ -42,23 +53,26 @@ function App() {
 
   const fetchData = async () => {
     try {
-      const [statsRes, posRes, candRes, setRes, pnlRes] = await Promise.all([
+      const [statsRes, posRes, candRes, setRes, pnlRes, sysRes] = await Promise.all([
         fetch(`${API_BASE}/stats`).then(r => r.json()),
         fetch(`${API_BASE}/positions`).then(r => r.json()),
         fetch(`${API_BASE}/candidates`).then(r => r.json()),
         fetch(`${API_BASE}/settings`).then(r => r.json()),
         fetch(`${API_BASE}/pnl`).then(r => r.json()),
+        fetch(`${API_BASE}/system-info`).then(r => r.json()).catch(() => null),
       ]);
       setStats(statsRes);
       setPositions(posRes || []);
       setCandidates(candRes || []);
       setStrategies(setRes.strategies || []);
       setPnlData(pnlRes.pnlData || []);
+      if (sysRes) setSystemInfo(sysRes);
       
       const active = setRes.strategies?.find(s => s.enabled);
       const currentGlobal = setRes.global || { 
         trading_mode: 'dry_run', 
         agent_enabled: true,
+        dry_run_wallet_balance: 'off',
         override_tpsl_enabled: false,
         default_tp_percent: 50,
         default_sl_percent: -25,
@@ -67,12 +81,13 @@ function App() {
       };
 
       // Baseline for global
-      if (!lastSavedGlobalRef.current) {
+      const isFirstLoad = !lastSavedGlobalRef.current;
+      if (isFirstLoad) {
         lastSavedGlobalRef.current = JSON.stringify(currentGlobal);
       }
 
-      // ONLY update global if no pending edits
-      if (JSON.stringify(globalSettings) === lastSavedGlobalRef.current) {
+      // ONLY update global if no pending edits OR if it is the first load
+      if (isFirstLoad || JSON.stringify(globalSettings) === lastSavedGlobalRef.current) {
         setGlobalSettings(currentGlobal);
         lastSavedGlobalRef.current = JSON.stringify(currentGlobal);
       }
@@ -111,6 +126,7 @@ function App() {
 
   // Auto-save Global Settings
   useEffect(() => {
+    if (!lastSavedGlobalRef.current) return;
     const current = JSON.stringify(globalSettings);
     if (current === lastSavedGlobalRef.current) return;
 
@@ -304,10 +320,11 @@ function App() {
               globalSettings={globalSettings}
               activeStrategy={activeStrategy}
               positions={positions}
+              systemInfo={systemInfo}
             />
           )}
           {activeTab === 'positions' && (
-            <Positions positions={positions} handleClosePosition={handleClosePosition} />
+            <Positions positions={positions} handleClosePosition={handleClosePosition} stats={stats} />
           )}
           {activeTab === 'settings' && (
             <SettingsPage 

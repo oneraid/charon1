@@ -3,23 +3,32 @@ import {
   TrendingUp, TrendingDown, Crosshair, Activity, Zap, RefreshCw, 
   ChevronUp, ChevronDown, Minus, DollarSign, Wallet,
   ShieldCheck, AlertCircle, BarChart3, Clock, ArrowUpRight,
-  Brain
+  Brain, Server, Cpu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function Overview({ stats, candidates, lastRefresh, fetchData, globalSettings, activeStrategy, positions }) {
+export function Overview({ stats, candidates, lastRefresh, fetchData, globalSettings, activeStrategy, positions, systemInfo }) {
   const closedPositions = positions?.filter(p => p.status === 'closed') || [];
   const recentTrades = closedPositions.slice(0, 8);
+  const isLive = globalSettings.trading_mode === 'live' || globalSettings.trading_mode === 'confirm';
   
-  // Calculate total PnL from closed positions
-  const totalPnL = closedPositions.reduce((acc, p) => {
+  const totalInvestedSol = closedPositions.reduce((acc, p) => acc + (Number(p.size_sol) || 0), 0);
+  const totalPnLSol = closedPositions.reduce((acc, p) => acc + (Number(p.pnl_sol) || 0), 0);
+  const totalPnL = totalInvestedSol > 0 ? (totalPnLSol / totalInvestedSol) * 100 : 0;
+
+  const winners = closedPositions.filter(p => {
     const exit = Number(p.exit_price || 0);
     const entry = Number(p.entry_price || 0);
-    if (exit && entry) {
-      return acc + ((exit - entry) / entry) * 100;
-    }
-    return acc;
-  }, 0);
+    return exit > entry;
+  }).length;
+  const losers = closedPositions.length - winners;
+
+  const solPrice = stats.solPriceUsd || 170;
+  const totalPnLUsd = totalPnLSol * solPrice;
+  const liveUsd = stats.realWalletBalance ? (Number(stats.realWalletBalance) * solPrice).toFixed(2) : '0.00';
+  const dryUsd = globalSettings.dry_run_wallet_balance !== 'off' 
+    ? (Number(globalSettings.dry_run_wallet_balance) * solPrice).toFixed(2) 
+    : null;
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -53,6 +62,34 @@ export function Overview({ stats, candidates, lastRefresh, fetchData, globalSett
               {globalSettings.trading_mode?.toUpperCase() || 'DRY_RUN'}
             </span>
           </div>
+          {isLive ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800 backdrop-blur-sm animate-fade-in">
+              <Wallet size={14} className="text-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">
+                Live Bal: <span className={cn(
+                  "font-bold",
+                  stats.realWalletBalance === undefined 
+                    ? "text-zinc-500 animate-pulse" 
+                    : stats.realWalletBalance === null 
+                      ? "text-rose-400 font-bold" 
+                      : "text-emerald-400 font-bold"
+                )}>
+                  {stats.realWalletBalance === undefined 
+                    ? 'Loading...' 
+                    : stats.realWalletBalance === null 
+                      ? 'RPC Error' 
+                      : `${Number(stats.realWalletBalance).toFixed(4)} SOL`}
+                </span>
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800 backdrop-blur-sm animate-fade-in">
+              <Wallet size={14} className="text-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">
+                Dry Bal: <span className="text-emerald-400 font-bold">{globalSettings.dry_run_wallet_balance === 'off' ? 'Unlimited' : `${Number(globalSettings.dry_run_wallet_balance).toFixed(4)} SOL`}</span>
+              </span>
+            </div>
+          )}
           <button 
             onClick={fetchData} 
             className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-emerald-500 text-black font-bold text-[10px] uppercase tracking-wider hover:bg-emerald-400 transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
@@ -67,7 +104,14 @@ export function Overview({ stats, candidates, lastRefresh, fetchData, globalSett
         <MetricCard 
           label="Win Rate" 
           value={`${(stats.winRate || 0).toFixed(1)}%`}
-          sub="Performance accuracy"
+          sub={
+            <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider leading-none">
+              <span className="text-emerald-400 font-bold">{winners}W</span>
+              <span className="text-zinc-700">·</span>
+              <span className="text-rose-400 font-bold">{losers}L</span>
+              <span className="text-zinc-500 ml-1">accuracy</span>
+            </span>
+          }
           icon={TrendingUp}
           accent="emerald"
           delay="delay-[0ms]"
@@ -76,26 +120,85 @@ export function Overview({ stats, candidates, lastRefresh, fetchData, globalSett
         <MetricCard 
           label="Est. ROI" 
           value={`${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(1)}%`}
-          sub="Total closed yield"
+          sub={
+            <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider leading-none">
+              <span className={cn(
+                "font-bold",
+                totalPnLUsd >= 0 ? "text-emerald-400" : "text-rose-400"
+              )}>
+                {totalPnLUsd >= 0 ? '+' : ''}{totalPnLSol.toFixed(4)} SOL
+              </span>
+              <span className="text-zinc-700">·</span>
+              <span className={cn(
+                "font-bold",
+                totalPnLUsd >= 0 ? "text-emerald-400" : "text-rose-400"
+              )}>
+                {totalPnLUsd >= 0 ? '+' : ''}${totalPnLUsd.toFixed(2)} USD
+              </span>
+            </span>
+          }
           icon={BarChart3}
           accent={totalPnL >= 0 ? "emerald" : "rose"}
           delay="delay-[100ms]"
         />
 
-        <MetricCard 
-          label="Total Trades" 
-          value={stats.totalTrades || 0}
-          sub="Cycle volume"
-          icon={Crosshair}
-          accent="sky"
-          delay="delay-[200ms]"
-        />
+        {isLive ? (
+          <MetricCard 
+            label="Live Balance" 
+            value={
+              stats.realWalletBalance === undefined 
+                ? 'Loading...' 
+                : stats.realWalletBalance === null 
+                  ? 'RPC Error' 
+                  : `${Number(stats.realWalletBalance).toFixed(4)} SOL`
+            }
+            sub={
+              stats.realWalletBalance === undefined ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse" />
+                  Querying blockchain...
+                </span>
+              ) : stats.realWalletBalance === null ? (
+                <span className="flex items-center gap-1.5 text-rose-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  RPC connection failed
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Connected · ${liveUsd} USD
+                </span>
+              )
+            }
+            icon={Wallet}
+            accent={stats.realWalletBalance === null ? 'rose' : 'emerald'}
+            delay="delay-[200ms]"
+          />
+        ) : (
+          <MetricCard 
+            label="SOL Balance" 
+            value={globalSettings.dry_run_wallet_balance === 'off' ? 'Unlimited' : `${Number(globalSettings.dry_run_wallet_balance).toFixed(4)} SOL`}
+            sub={
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
+                {dryUsd ? `Simulated · $${dryUsd} USD` : 'Simulated paper budget'}
+              </span>
+            }
+            icon={Wallet}
+            accent="sky"
+            delay="delay-[200ms]"
+          />
+        )}
 
         <MetricCard 
-          label="Active" 
-          value={stats.openPositions || 0}
-          sub="Open in market"
-          icon={Activity}
+          label="Positions" 
+          value={stats.totalTrades || 0}
+          sub={
+            <span className="flex items-center gap-1.5">
+              Active: <span className="text-amber-400 font-bold">{stats.openPositions || 0}</span>
+            </span>
+          }
+          icon={Crosshair}
           accent="amber"
           delay="delay-[300ms]"
         />
@@ -158,6 +261,35 @@ export function Overview({ stats, candidates, lastRefresh, fetchData, globalSett
               </div>
               <div className="h-1.5 w-full bg-zinc-800 rounded-full mt-4 overflow-hidden">
                 <div className="h-full bg-emerald-500 w-[70%]" />
+              </div>
+            </div>
+          </div>
+
+          {/* API Connections & System Info Card */}
+          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 backdrop-blur-md relative overflow-hidden group">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+                <Server size={16} />
+              </div>
+              <span className="text-[11px] font-mono text-zinc-500 uppercase tracking-widest">API Connection Status</span>
+            </div>
+
+            <div className="space-y-2.5">
+              <ApiStatusRow label="Solana RPC" status={systemInfo?.solanaRpc} />
+              <ApiStatusRow label="Jupiter Swap" status={systemInfo?.jupiterApi} />
+              <ApiStatusRow label="GMGN Meme Api" status={systemInfo?.gmgnApi} />
+              <ApiStatusRow label="LLM Claude Engine" status={systemInfo?.llmApi} />
+              <ApiStatusRow label="Signal Server" status={systemInfo?.signalServer} />
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-zinc-800/60 flex flex-col gap-1.5 text-[9px] font-mono text-zinc-600">
+              <div className="flex justify-between">
+                <span>Database:</span>
+                <span className="text-zinc-500">{systemInfo?.dbPath}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Node Environment:</span>
+                <span className="text-zinc-500">{systemInfo?.nodeVersion} ({systemInfo?.platform})</span>
               </div>
             </div>
           </div>
@@ -283,6 +415,27 @@ function RecentTradeRow({ trade }) {
         isWin ? "text-emerald-400 bg-emerald-500/5" : "text-rose-400 bg-rose-500/5"
       )}>
         {isWin ? '+' : ''}{pnl.toFixed(1)}%
+      </div>
+    </div>
+  );
+}
+
+function ApiStatusRow({ label, status }) {
+  const isOk = status === 'Connected' || status === 'Active';
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="text-zinc-400 font-medium">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <span className={cn(
+          "w-1.5 h-1.5 rounded-full",
+          isOk ? "bg-emerald-400 animate-pulse" : "bg-rose-500 animate-pulse"
+        )} />
+        <span className={cn(
+          "font-mono font-bold uppercase text-[9px] tracking-wider",
+          isOk ? "text-emerald-400" : "text-rose-500"
+        )}>
+          {status || 'Disconnected'}
+        </span>
       </div>
     </div>
   );

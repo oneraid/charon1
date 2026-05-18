@@ -8,6 +8,8 @@ import { closePosition } from '../telegram/commands.js';
 import { fetchWalletPnl } from '../enrichment/wallets.js';
 import { TELEGRAM_CHAT_ID } from '../config.js';
 import { now } from '../utils.js';
+import { getLiveWalletBalanceSOL } from '../liveExecutor.js';
+import { fetchSolUsdPrice } from '../enrichment/jupiter.js';
 
 export function startWebServer(port = 3000) {
   const app = express();
@@ -17,7 +19,7 @@ export function startWebServer(port = 3000) {
 
   // API Endpoints
 
-  app.get('/api/stats', (req, res) => {
+  app.get('/api/stats', async (req, res) => {
     try {
       // Basic stats calculation from trades and positions
       const trades = db.prepare('SELECT * FROM dry_run_trades').all();
@@ -30,11 +32,16 @@ export function startWebServer(port = 3000) {
         return exit > entry;
       }).length;
       
+      const realWalletBalance = await getLiveWalletBalanceSOL();
+      const solPriceUsd = await fetchSolUsdPrice();
+      
       res.json({
         totalTrades: trades.length,
         totalPositions: positions.length,
         winRate: closedPositions.length > 0 ? (winCount / closedPositions.length) * 100 : 0,
         openPositions: positions.filter(p => p.status === 'open').length,
+        realWalletBalance: realWalletBalance,
+        solPriceUsd: solPriceUsd,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -116,6 +123,7 @@ export function startWebServer(port = 3000) {
       const global = {
         trading_mode: db.prepare('SELECT value FROM settings WHERE key = ?').get('trading_mode')?.value || 'dry_run',
         agent_enabled: db.prepare('SELECT value FROM settings WHERE key = ?').get('agent_enabled')?.value !== 'false',
+        dry_run_wallet_balance: db.prepare('SELECT value FROM settings WHERE key = ?').get('dry_run_wallet_balance')?.value || 'off',
         llm_candidate_pick_count: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('llm_candidate_pick_count')?.value || 10),
         llm_candidate_max_age_ms: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('llm_candidate_max_age_ms')?.value || 600000),
         max_open_positions: Number(db.prepare('SELECT value FROM settings WHERE key = ?').get('max_open_positions')?.value || 3),
@@ -215,6 +223,23 @@ export function startWebServer(port = 3000) {
         pnlData.push({ wallet, pnl });
       }
       res.json({ pnlData });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/system-info', (req, res) => {
+    try {
+      res.json({
+        solanaRpc: process.env.SOLANA_RPC_URL ? 'Connected' : 'Not Configured',
+        jupiterApi: process.env.JUPITER_SWAP_BASE_URL ? 'Active' : 'Not Configured',
+        gmgnApi: process.env.GMGN_API_KEY ? 'Active' : 'Not Configured',
+        llmApi: process.env.LLM_API_KEY ? 'Active' : 'Not Configured',
+        signalServer: process.env.SIGNAL_SERVER_URL ? 'Connected' : 'Not Configured',
+        dbPath: './charon.sqlite',
+        nodeVersion: process.version,
+        platform: process.platform,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

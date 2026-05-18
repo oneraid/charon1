@@ -151,6 +151,34 @@ export async function handleApprovedBuy(selectedRow, decision, batchId, rows = [
   }
 
   if (mode === 'dry_run') {
+    const { setting, setSetting } = await import('../db/settings.js');
+    const dryBalanceSetting = setting('dry_run_wallet_balance', 'off');
+    if (dryBalanceSetting !== 'off') {
+      const balance = Number(dryBalanceSetting);
+      if (Number.isFinite(balance)) {
+        const strat = activeStrategy();
+        const sizeSol = strat.position_size_sol ?? numSetting('dry_run_buy_sol', 0.1);
+        if (balance < sizeSol) {
+          console.log(`[agent] Insufficient dry-run balance. Have ${balance.toFixed(4)} SOL, need ${sizeSol.toFixed(2)} SOL. Skipping dry buy.`);
+          logDecisionEvent({
+            batchId,
+            triggerCandidateId,
+            selectedRow: freshSelectedRow,
+            rows: executionRows,
+            decision,
+            mode,
+            action: 'dry_run_skipped_insufficient_balance',
+            guardrails: { dryBalance: balance, sizeSol },
+          });
+          await sendTelegram(`⚠️ <b>Dry-run buy skipped: Insufficient balance</b>\nNeed <b>${sizeSol.toFixed(4)} SOL</b> but dry-run balance is <b>${balance.toFixed(4)} SOL</b>.`);
+          return;
+        }
+        const nextBalance = balance - sizeSol;
+        setSetting('dry_run_wallet_balance', String(nextBalance));
+        console.log(`[agent] Dry-run balance deducted: ${balance.toFixed(4)} -> ${nextBalance.toFixed(4)} SOL`);
+      }
+    }
+
     const positionId = await createDryRunPosition(freshSelectedRow.id, freshSelectedRow.candidate, decision, `llm_batch_${batchId}`);
     logDecisionEvent({
       batchId,

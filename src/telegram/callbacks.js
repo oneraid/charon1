@@ -1,7 +1,7 @@
 import { bot } from './bot.js';
 import { TELEGRAM_CHAT_ID } from '../config.js';
 import { now } from '../utils.js';
-import { numSetting, boolSetting, setSetting, setActiveStrategy, activeStrategy, updateStrategyConfig } from '../db/settings.js';
+import { numSetting, boolSetting, setting, setSetting, setActiveStrategy, activeStrategy, updateStrategyConfig } from '../db/settings.js';
 import {
   menuKeyboard,
   filtersText,
@@ -105,6 +105,22 @@ export async function handleCallback(query) {
       await executeLiveBuy(row, decision, 'manual', [row], row.id);
       return;
     }
+
+    const dryBalanceSetting = setting('dry_run_wallet_balance', 'off');
+    if (dryBalanceSetting !== 'off') {
+      const balance = Number(dryBalanceSetting);
+      if (Number.isFinite(balance)) {
+        const strat = activeStrategy();
+        const sizeSol = strat.position_size_sol ?? numSetting('dry_run_buy_sol', 0.1);
+        if (balance < sizeSol) {
+          return bot.sendMessage(chatId, `⚠️ <b>Manual dry-run buy failed</b>\nInsufficient balance. Need <b>${sizeSol.toFixed(4)} SOL</b> but dry-run balance is <b>${balance.toFixed(4)} SOL</b>.`, { parse_mode: 'HTML' });
+        }
+        const nextBalance = balance - sizeSol;
+        setSetting('dry_run_wallet_balance', String(nextBalance));
+        console.log(`[callback] Manual dry-run buy balance deducted: ${balance.toFixed(4)} -> ${nextBalance.toFixed(4)} SOL`);
+      }
+    }
+
     const positionId = await createDryRunPosition(row.id, candidate, decision, 'manual_buy');
     logDecisionEvent({
       batchId: 'manual',
@@ -244,6 +260,7 @@ async function updateSettingFromButton(query, key, value) {
     'llm_candidate_max_age_ms',
     'max_open_positions',
     'dry_run_buy_sol',
+    'dry_run_wallet_balance',
     'default_tp_percent',
     'default_sl_percent',
     'default_trailing_enabled',
@@ -251,10 +268,10 @@ async function updateSettingFromButton(query, key, value) {
   ]);
   if (!valid.has(key) || value == null) return bot.sendMessage(chatId, 'Unknown setting.');
   setSetting(key, value);
-  const text = key.startsWith('default_') || key === 'dry_run_buy_sol' || key === 'trading_mode' || key === 'llm_min_confidence' || key === 'llm_candidate_pick_count' || key === 'llm_candidate_max_age_ms' || key === 'max_open_positions'
+  const text = key.startsWith('default_') || key === 'dry_run_buy_sol' || key === 'dry_run_wallet_balance' || key === 'trading_mode' || key === 'llm_min_confidence' || key === 'llm_candidate_pick_count' || key === 'llm_candidate_max_age_ms' || key === 'max_open_positions'
     ? agentText()
     : filtersText();
-  const extra = key.startsWith('default_') || key === 'dry_run_buy_sol' || key === 'trading_mode' || key === 'llm_min_confidence' || key === 'llm_candidate_pick_count' || key === 'llm_candidate_max_age_ms' || key === 'max_open_positions'
+  const extra = key.startsWith('default_') || key === 'dry_run_buy_sol' || key === 'dry_run_wallet_balance' || key === 'trading_mode' || key === 'llm_min_confidence' || key === 'llm_candidate_pick_count' || key === 'llm_candidate_max_age_ms' || key === 'max_open_positions'
     ? agentKeyboard()
     : filtersKeyboard();
   return editMenuMessage(query, text, extra);
