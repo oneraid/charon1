@@ -55,10 +55,40 @@ function normalizeJupiterTrendingRow(row, interval, rank) {
   };
 }
 
+async function fetchDexScreenerAsset(mint) {
+  try {
+    const res = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, {
+      timeout: 8000,
+      headers: JSON_HEADERS,
+    });
+    const pairs = Array.isArray(res.data?.pairs) ? res.data.pairs : [];
+    const pair = pairs.find(p => p.chainId === 'solana') || pairs[0] || null;
+    if (pair) {
+      const data = {
+        id: mint,
+        usdPrice: Number(pair.priceUsd || 0),
+        mcap: Number(pair.marketCap || pair.fdv || 0),
+        fdv: Number(pair.fdv || 0),
+        name: pair.baseToken?.name || '',
+        symbol: pair.baseToken?.symbol || '',
+      };
+      jupiterAssetCache.set(mint, { at: now(), data });
+      return data;
+    }
+  } catch (err) {
+    console.log(`[dexscreener] fallback failed for ${mint.slice(0, 8)}...: ${err.message}`);
+  }
+  return null;
+}
+
 async function fetchJupiterAsset(mint, { useCache = true, ttlMs = 20_000 } = {}) {
   const cached = jupiterAssetCache.get(mint);
   if (useCache && cached && now() - cached.at < ttlMs) return cached.data;
-  if (jupiterAssetBackoffActive()) return cached?.data || null;
+  if (jupiterAssetBackoffActive()) {
+    const dex = await fetchDexScreenerAsset(mint);
+    if (dex) return dex;
+    return cached?.data || null;
+  }
   try {
     const url = new URL('https://datapi.jup.ag/v1/assets/search');
     url.searchParams.set('query', mint);
@@ -68,13 +98,17 @@ async function fetchJupiterAsset(mint, { useCache = true, ttlMs = 20_000 } = {})
     });
     const rows = Array.isArray(res.data) ? res.data : [];
     const data = rows.find(row => row?.id === mint) || rows[0] || null;
-    jupiterAssetCache.set(mint, { at: now(), data });
-    return data;
+    if (data) {
+      jupiterAssetCache.set(mint, { at: now(), data });
+      return data;
+    }
   } catch (err) {
     setJupiterAssetBackoff(err);
     if (err.response?.status !== 429) console.log(`[asset] ${mint.slice(0, 8)}... ${err.response?.status || ''} ${err.message}`);
-    return cached?.data || null;
   }
+  const dex = await fetchDexScreenerAsset(mint);
+  if (dex) return dex;
+  return cached?.data || null;
 }
 
 async function fetchSolUsdPrice() {

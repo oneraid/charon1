@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, BarChart2, Server, Settings, Wallet, Target, CheckCircle2 } from 'lucide-react';
+import { Activity, BarChart2, Server, Settings, Wallet, Target, CheckCircle2, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import './index.css';
 
@@ -50,6 +50,9 @@ function App() {
 
   const [newWalletLabel, setNewWalletLabel] = useState('');
   const [newWalletAddress, setNewWalletAddress] = useState('');
+  
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetStep, setResetStep] = useState(1);
 
   const fetchData = async () => {
     try {
@@ -122,6 +125,27 @@ function App() {
       });
       fetchData();
     } catch { alert('Failed to close position'); }
+  };
+
+  const handleResetDatabase = () => {
+    setResetStep(1);
+    setShowResetModal(true);
+  };
+
+  const confirmResetDatabase = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/db/reset`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setShowResetModal(false);
+        fetchData();
+      } else {
+        alert('Failed to reset database.');
+      }
+    } catch {
+      alert('Error resetting database.');
+    }
   };
 
   // Auto-save Global Settings
@@ -334,6 +358,7 @@ function App() {
               globalSettings={globalSettings}
               setGlobalSettings={setGlobalSettings}
               handleToggleStrategy={handleToggleStrategy}
+              handleResetDatabase={handleResetDatabase}
             />
           )}
           {activeTab === 'wallets' && (
@@ -363,6 +388,82 @@ function App() {
           </div>
         </div>
       </div>
+      {/* Database Reset Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 bg-zinc-900/50">
+              <div className="flex items-center gap-2 text-rose-400">
+                <AlertTriangle size={18} />
+                <h3 className="font-bold text-[14px]">Reset Database</h3>
+              </div>
+              <button 
+                onClick={() => setShowResetModal(false)}
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            {/* Body */}
+            <div className="p-6">
+              {resetStep === 1 ? (
+                <>
+                  <p className="text-[13px] text-zinc-300 mb-4 leading-relaxed">
+                    Are you sure you want to completely reset the trading database?
+                  </p>
+                  <ul className="text-[12px] text-zinc-500 space-y-2 mb-6 font-mono bg-zinc-950/50 p-4 rounded-xl border border-zinc-800/50">
+                    <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 rounded-full bg-rose-500/50 mt-1.5 shrink-0"/> All active and closed positions will be deleted</li>
+                    <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 rounded-full bg-rose-500/50 mt-1.5 shrink-0"/> Winrate and PnL statistics will return to 0</li>
+                    <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 rounded-full bg-rose-500/50 mt-1.5 shrink-0"/> Trading history and logs will be wiped</li>
+                  </ul>
+                  <div className="flex items-center justify-end gap-3 mt-2">
+                    <button 
+                      onClick={() => setShowResetModal(false)}
+                      className="px-4 py-2 rounded-xl text-[12px] font-bold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => setResetStep(2)}
+                      className="px-4 py-2 rounded-xl text-[12px] font-bold text-rose-100 bg-rose-500/20 border border-rose-500/30 hover:bg-rose-500/30 transition-colors"
+                    >
+                      Yes, Proceed
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col items-center text-center mb-6">
+                    <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 mb-4">
+                      <Trash2 size={24} />
+                    </div>
+                    <h4 className="text-[15px] font-bold text-zinc-100 mb-2">Final Confirmation</h4>
+                    <p className="text-[12px] text-zinc-400">
+                      This action is <span className="text-rose-400 font-bold">irreversible</span>. There is no way to recover your data once deleted.
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => setResetStep(1)}
+                      className="flex-1 px-4 py-2.5 rounded-xl text-[12px] font-bold text-zinc-400 hover:text-zinc-200 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 transition-colors"
+                    >
+                      Go Back
+                    </button>
+                    <button 
+                      onClick={confirmResetDatabase}
+                      className="flex-1 px-4 py-2.5 rounded-xl text-[12px] font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-lg shadow-rose-900/20"
+                    >
+                      Reset Now
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

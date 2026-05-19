@@ -3,7 +3,7 @@ import {
   Settings as SettingsIcon, Target, Activity, Server, Shield,
   TrendingUp, TrendingDown, BarChart2, Users, Zap, Brain,
   ChevronDown, ChevronRight, AlertTriangle, DollarSign,
-  Clock, Filter, Layers, Eye
+  Clock, Filter, Layers, Eye, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Toggle } from '@/components/ui/Toggle';
@@ -213,7 +213,7 @@ function ModeSelector({ value, onChange }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function Settings({ strategies, activeStrategy, setActiveStrategy, globalSettings, setGlobalSettings, handleToggleStrategy }) {
+export function Settings({ strategies, activeStrategy, setActiveStrategy, globalSettings, setGlobalSettings, handleToggleStrategy, handleResetDatabase }) {
   const s = activeStrategy;
   const upd = (key, val) => setActiveStrategy(prev => ({ ...prev, [key]: val }));
 
@@ -561,6 +561,28 @@ export function Settings({ strategies, activeStrategy, setActiveStrategy, global
           </SectionCard>
         </>
       )}
+
+      {/* ── Danger Zone ── */}
+      <SectionCard icon={Trash2} title="Danger Zone" accent="rose" defaultOpen={true}>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5">
+            <div className="flex flex-col gap-1">
+              <span className="text-[12px] font-bold text-rose-400 flex items-center gap-1.5 uppercase tracking-wider">
+                <AlertTriangle size={13} /> Reset Trading Database
+              </span>
+              <p className="text-[11px] text-zinc-500 font-mono leading-relaxed max-w-lg">
+                Clears all open/closed positions, win rate statistics, and transaction history to start completely fresh at 0. Settings, configurations, and strategies remain intact.
+              </p>
+            </div>
+            <button
+              onClick={handleResetDatabase}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-500/35 bg-rose-500/10 text-rose-400 font-bold text-[12px] hover:bg-rose-500/20 hover:border-rose-500/50 hover:-translate-y-px active:translate-y-0 transition-all duration-150 shadow-md shadow-rose-950/20 shrink-0"
+            >
+              <Trash2 size={13} /> Reset Database
+            </button>
+          </div>
+        </div>
+      </SectionCard>
     </div>
   );
 }

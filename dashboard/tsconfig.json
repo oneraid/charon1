@@ -5,6 +5,9 @@
     "lib": ["ES2023", "DOM"],
     "types": ["vite/client"],
     "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
+    "ignoreDeprecations": "6.0",
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -24,5 +27,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src/**/*"]
 }

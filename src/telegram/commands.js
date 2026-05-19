@@ -104,6 +104,12 @@ export async function handleMessage(msg) {
     db.prepare('DELETE FROM saved_wallets WHERE label = ?').run(label);
     return bot.sendMessage(chatId, `Removed ${label}.`);
   }
+  if (text.startsWith('/resetdb')) {
+    db.prepare('DELETE FROM dry_run_positions').run();
+    db.prepare('DELETE FROM dry_run_trades').run();
+    db.prepare('DELETE FROM tp_sl_rules').run();
+    return bot.sendMessage(chatId, '🔄 Database has been reset! Winrate, history, and active positions are now at 0.');
+  }
   if (text.startsWith('/wallets')) return handleCallback({ id: 'manual', data: 'menu:wallets', message: { chat: { id: chatId } } });
   if (text.startsWith('/setfilter')) {
     const { key, value } = parseSetFilter(text);
@@ -158,7 +164,16 @@ export async function sendCandidate(chatId, id) {
 }
 
 export async function sendPositions(chatId) {
-  const rows = db.prepare("SELECT * FROM dry_run_positions WHERE status = 'open' ORDER BY opened_at_ms DESC LIMIT 12").all();
+  let rows = db.prepare("SELECT * FROM dry_run_positions WHERE status = 'open' ORDER BY opened_at_ms DESC LIMIT 12").all();
+  if (rows.length) {
+    await Promise.all(rows.map(row =>
+      refreshPosition(row, { autoExit: row.execution_mode !== 'live' }).catch(err => {
+        console.log(`[positions command] refresh error for #${row.id}: ${err.message}`);
+        return null;
+      })
+    ));
+    rows = db.prepare("SELECT * FROM dry_run_positions WHERE status = 'open' ORDER BY opened_at_ms DESC LIMIT 12").all();
+  }
   const text = rows.length ? rows.map(formatPosition).join('\n\n') : 'No active dry-run positions.';
   await bot.sendMessage(chatId, `📍 <b>Active Positions</b>\n\n${text}`, { parse_mode: 'HTML', disable_web_page_preview: true });
 }

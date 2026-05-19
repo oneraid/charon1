@@ -57,6 +57,18 @@ export function startWebServer(port = 3000) {
     }
   });
 
+  // NEW: Reset Database
+  app.post('/api/db/reset', (req, res) => {
+    try {
+      db.prepare('DELETE FROM dry_run_positions').run();
+      db.prepare('DELETE FROM dry_run_trades').run();
+      db.prepare('DELETE FROM tp_sl_rules').run();
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // NEW: Close a position
   app.post('/api/positions/:id/close', async (req, res) => {
     try {
@@ -241,6 +253,31 @@ export function startWebServer(port = 3000) {
         platform: process.platform,
       });
     } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/db/reset', (req, res) => {
+    try {
+      // Clear all trading history, positions, and LLM decisions
+      db.exec(`
+        DELETE FROM dry_run_positions;
+        DELETE FROM dry_run_trades;
+        DELETE FROM candidates;
+        DELETE FROM alerts;
+        DELETE FROM llm_decisions;
+        DELETE FROM llm_batches;
+        
+        -- Reset auto-increment counters
+        UPDATE sqlite_sequence SET seq = 0 WHERE name IN (
+          'dry_run_positions', 'dry_run_trades', 'candidates', 
+          'alerts', 'llm_decisions', 'llm_batches'
+        );
+      `);
+      console.log('[API] Database reset successful (history and positions cleared)');
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[API] Database reset error:', error);
       res.status(500).json({ error: error.message });
     }
   });
